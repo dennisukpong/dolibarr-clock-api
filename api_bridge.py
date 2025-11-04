@@ -275,6 +275,7 @@ def clock_action():
     # 7. Prepare Dolibarr Payload
     payload = {
         "type": action_type,
+        "type_code": action_type,
         "dateo": timestamp, # Start date/time (Unix timestamp)
         "datef": timestamp, # End date/time (same for a single clock action)
         "label": action_label,
