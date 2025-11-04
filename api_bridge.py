@@ -56,26 +56,76 @@ CLOCK_OUT_TYPE = 'AC_CLOOUT'
 
 def dolibarr_api_call(method, endpoint, data=None):
     """Generic function to handle Dolibarr REST API calls."""
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    
     headers = {
         "DOLAPIKEY": DOLIBARR_API_KEY,
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        "Accept": "application/json",
+        "Connection": "close",  # Prevent keep-alive issues
+        "User-Agent": "Dolibarr-Clock-Terminal/1.0"
     }
     url = f"{DOLIBARR_URL}/{endpoint}"
     
     try:
+        # Create new session for each request
+        session = requests.Session()
+        session.headers.update(headers)
+        
+        # Disable connection pooling
+        adapter = requests.adapters.HTTPAdapter(pool_connections=1, pool_maxsize=1)
+        session.mount('https://', adapter)
+        session.mount('http://', adapter)
+        
+        print(f"[DEBUG] Calling Dolibarr API: {method} {url}")
+        
         if method == 'GET':
-            response = requests.get(url, headers=headers, params=data)
+            response = session.get(
+                url,
+                params=data,
+                timeout=30,
+                verify=True
+            )
         elif method == 'POST':
-            response = requests.post(url, headers=headers, data=json.dumps(data))
+            print(f"[DEBUG] Payload: {json.dumps(data)[:200]}")
+            response = session.post(
+                url,
+                json=data,
+                timeout=30,
+                verify=True
+            )
         else:
-            return None, 405 # Method Not Allowed
-
-        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+            return None, 405
+        
+        print(f"[DEBUG] Response Status: {response.status_code}")
+        print(f"[DEBUG] Response Body: {response.text[:500]}")
+        
+        session.close()
+        
+        response.raise_for_status()
         return response.json(), response.status_code
-    except requests.exceptions.RequestException as e:
-        print(f"Dolibarr API Error: {e}")
-        return {"error": str(e)}, 500
+        
+    except requests.exceptions.Timeout as e:
+        print(f"[ERROR] Dolibarr API Timeout: {e}")
+        return {"error": "Request timed out"}, 504
+        
+    except requests.exceptions.ConnectionError as e:
+        print(f"[ERROR] Dolibarr Connection Error: {e}")
+        return {"error": "Connection failed - Check Dolibarr server accessibility"}, 503
+        
+    except requests.exceptions.HTTPError as e:
+        print(f"[ERROR] Dolibarr HTTP Error: {e}")
+        try:
+            return response.json(), response.status_code
+        except:
+            return {"error": str(e), "status": response.status_code}, response.status_code
+            
+    except Exception as e:
+        print(f"[ERROR] Unexpected error: {type(e).__name__}: {e}")
+        return {"error": f"Unexpected error: {str(e)}"}, 500
+
+
 
 def get_last_clock_action(user_id):
     """Queries Dolibarr to find the last clock-in/out action for a user."""
