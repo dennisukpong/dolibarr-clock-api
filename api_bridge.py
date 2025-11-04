@@ -280,6 +280,7 @@ def clock_action():
         "label": action_label,
         "note": f"{action_label} via QR Terminal. Terminal ID: {request.remote_addr}{note_suffix}",
         "fk_user": user_id,
+        "userownerid": user_id,
         "fullday": 0 # Not a full day event
     }
 
