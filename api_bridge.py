@@ -130,23 +130,27 @@ def dolibarr_api_call(method, endpoint, data=None):
 def get_last_clock_action(user_id):
     """Queries Dolibarr to find the last clock-in/out action for a user."""
     # Filter for the user and only the clock-in/out event types
-    sqlfilters = f"(t.fk_user: =:'{user_id}') AND (t.type: =:'{CLOCK_IN_TYPE}' OR t.type: =:'{CLOCK_OUT_TYPE}')"
+    sqlfilters = f"(t.fk_user:=:'{user_id}')AND(t.type:=:'{CLOCK_IN_TYPE}'ORt.type:=:'{CLOCK_OUT_TYPE}')"
     
-    # Get the latest event (sort by date descending, limit 1)
     data = {
         "sortfield": "t.dateo",
         "sortorder": "DESC",
-        "limit": 1,
+        "limit": "1",
         "sqlfilters": sqlfilters
     }
     
+    print(f"[DEBUG] get_last_clock_action - sqlfilters: {sqlfilters}")
+    
     events, status = dolibarr_api_call('GET', 'agendaevents', data=data)
     
-    if status == 200 and events:
-        # The API returns a list, we take the first element (the latest)
-        return events[0] # Return the full event object
+    if status != 200:
+        print(f"[ERROR] Failed to get last clock action for user {user_id}: Status {status}, Response: {events}")
+        return None
     
-    # If no events found or error, return None
+    if events and isinstance(events, list) and len(events) > 0:
+        return events[0]
+    
+    print(f"[INFO] No previous clock actions found for user {user_id}")
     return None
 
 def get_schedule_for_today(user_id, current_time):
